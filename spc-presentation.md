@@ -42,71 +42,46 @@ style: |
   }
 ---
 
-# Agentic Programming Workflow
+# Optimize Your Agentic Coding Setup
 
-**The highest-leverage AI configs are constraints, not capabilities.**
+**For power users who want to squeeze out extra performance.**
 
-*SPC Lunch Demo — Dan Kwon*
-
----
-
-# Two failure modes nobody warns you about
+*SPC Lunch Demo — Dan Kwon — March 5, 2026*
 
 ---
 
-## 1. Your AI forgets mid-conversation
-
-Claude Code has a 200k-token context window. When it fills, it auto-summarizes — **compaction.**
-
-Compaction is catastrophic. Reasoning quality collapses. There is no good mental model for what survives.
-
-Even without compaction, longer context = worse reasoning.
-
-> Paper: *"Context Length Alone Hurts LLM Performance Despite Perfect Retrieval"*
-
-Think of it as **working memory.** Drop a 500-page manual on a junior employee's desk — they'll forget the important parts. Compaction is the AI quietly throwing away your instructions.
+# The Basics
 
 ---
 
-## 2. Your AI helps you do the wrong work at lightspeed
+## CLAUDE.md: Global vs Project
 
-I built 20+ files of interview analysis — strategy documents, company research, competitive frameworks — when I should have been drilling Python basics.
-
-The agent never pushed back. The output was excellent. The **direction** was wrong.
-
-An AI agent will help you do the wrong work with extraordinary thoroughness.
-
----
-
-# The System
-
----
-
-## The Employee Handbook: config architecture
-
-Everything lives in a dotfiles repo, symlinked to `~/.claude/`. One `setup.sh` bootstraps it.
-
-| Layer | Analogy | Loaded when? |
-|-------|---------|-------------|
-| **Global rules** | Company handbook | Every session |
-| **Project CLAUDE.md** | Team SOPs | In that project |
-| **Skills** | Reference manual | On-demand only |
+| Layer | Path | Loaded when? |
+|-------|------|-------------|
+| **Global** | `~/.claude/CLAUDE.md` | Every session, every project |
+| **Project** | `./CLAUDE.md` in project root | In that project only |
 
 Every token in global config costs context in every conversation.
 
-*My first CLAUDE.md: ~320 lines. Now: under 100.*
+As the file grows, extract to project-level CLAUDE.md and skills.
 
 ---
 
-## The Boris Cherny loop
+## Example rule: Simplicity Protocol
 
-> "After every correction, end with: Update your CLAUDE.md so you don't make that mistake again."
-
-I corrected an Obsidian formatting issue twice. Told the agent to write a rule.
-
-Third session onward — no repeats.
-
-**The config gets better over time because the agent maintains it.**
+```markdown
+**Core Test**: Can you explain this architecture in 2 minutes?
+  NO → simplify. YES → ship it.
+**5-Line Rule**: If core logic needs >5 lines of pseudocode,
+  it's over-engineered.
+**Banned Patterns**: Abstract interfaces for single implementations.
+  Config systems for hardcoded values.
+  Vendor abstraction until 2+ vendors exist.
+**Auto-Reject**: Timeline >2 weeks | Dependencies saving <4 hours
+  | Features for <80% users | Abstractions for <3 use cases
+**Stop Coding When**: Core workflow works | Happy path smooth
+  | Data safe | Basic error handling exists | Tests pass
+```
 
 ---
 
@@ -114,7 +89,7 @@ Third session onward — no repeats.
 
 Not deterministic — a statistical bias on output distribution.
 
-`critical` rules get followed more reliably than untagged rules.
+`critical` rules get followed more reliably (but still not guaranteed).
 
 ```xml
 <rules>
@@ -132,76 +107,222 @@ Not deterministic — a statistical bias on output distribution.
 
 ---
 
+## Constant improvement: Auto-memory
+
+`~/.claude/projects/<project>/memory/MEMORY.md`
+
+- Project-level context that loads automatically every session
+- `/memory` toggles this on or off (default: ON)
+- Force the agent to commit something to memory by asking it to not make the same mistake again
+
+**The config gets better over time because the agent maintains it.**
+
+---
+
+## Post tool call hooks
+
+Three event types: `PreToolUse`, `PostToolUse`, `UserPromptSubmit`
+
+```json
+"hooks": {
+  "PreToolUse": [{"matcher": "Edit|Write",
+    "hooks": [{"type": "command",
+      "command": "bash ~/.claude/hooks/detect-secrets.sh"}]}],
+  "PostToolUse": [{"matcher": "",
+    "hooks": [{"type": "command",
+      "command": "bash ~/.claude/hooks/context-usage.sh"}]}],
+  "UserPromptSubmit": [{"matcher": "",
+    "hooks": [{"type": "command",
+      "command": "bash ~/.claude/hooks/register-context.sh"}]}]
+}
+```
+
+---
+
+## Skills
+
+Invoked by `/skill-name` or automatically when the agent matches the request.
+
+Use skills to store procedures that are useful but don't need to be in CLAUDE.md.
+
+`/audit <scope>` — multi-model audit (133 lines):
+
+```markdown
+# Modes
+- `/audit <scope>` — Full audit: scan → issues → user answers → execute
+- `/audit scan <scope>` — Scan only: produce issues doc, stop
+
+# Rules:
+- Consensus = confidence, disagreement = investigate
+- "Is this actionable?" is the quality bar
+```
+
+---
+
+## Skills vs Custom Agents
+
+| | Skills | Custom Agents |
+|--|--------|---------------|
+| **Path** | `.claude/skills/` | `~/.claude/agents/` |
+| **Invoked by** | `/skill-name` or auto-match | Task tool subagent dispatch |
+| **Context** | Runs in main context | **Isolated context** |
+
+**Context isolation is the key difference.** Agents don't pollute the main conversation.
+
+---
+
+## Custom Agents
+
+`~/.claude/agents/` — available to Task tool as subagent types.
+
+```markdown
+---
+name: code-reviewer
+description: Expert code review specialist.
+tools: Read, Grep, Glob, Bash
+---
+When invoked:
+1. Run `git diff` to see recent changes
+2. Focus on modified files
+3. Begin review immediately
+Feedback: Critical | Warning | Suggestion
+```
+
+Use when you need a skill but don't want to add to the main agent context.
+
+---
+
+# Interesting Concepts
+
+---
+
+## Context window management is everything
+
+High context window usage (even without reaching limits) degrades reasoning.
+
+> *"Context Length Alone Hurts LLM Performance Despite Perfect Retrieval"*
+
+Compaction is catastrophic. When the 200k window fills, it auto-summarizes. Reasoning quality collapses.
+
+Use `/clear` when old conversation context is not needed.
+
+---
+
+## Persona model: garbage in, garbage out
+
+Input token "intelligence" affects output token "intelligence."
+
+- Paper: Small prompt variations make a big difference for Llama
+- Anthropic's **Persona Selection Model**: LLMs simulate diverse "personas" during pretraining. Post-training refines personas.
+- Prompts that invoke "intelligent" personas produce more "intelligent" output
+
+Maybe: Does prompt engineering matter more for Gemini than Opus?
+
+---
+
+## Models are different, not better
+
+Using the same model for multi-agent debate may have consistent blind spots.
+
+| Model | Strength | Blind spot |
+|-------|----------|-----------|
+| **Claude Opus** | Avoids hallucinations | Often "lazy" |
+| **Grok** | Doggedly looks for disconfirming info | Risk of hallucination |
+| **Gemini** | Extremely powerful | Lacks common sense |
+| **Codex** | Fixing thorny bugs | Not suited for analysis |
+
+When models agree → corroboration. When they disagree → investigate.
+
+---
+
+# The Techniques
+
+---
+
+## Custom "plan mode" via CLAUDE.md
+
+```markdown
+<rule priority="critical">
+  Research → Plan → Branch → Code → Test → Document → Merge
+</rule>
+```
+
+```markdown
+1. **Research**: Use Task tool for 2+ aspects before coding
+2. **Plan**: Create PRD for large tasks; decompose for parallel work
+3. **Branch**: Create feature branch before code changes
+4. **Code**: Implement with simplicity principles
+5. **Test**: Run REAL tests locally
+6. **Document**: Update relevant docs
+7. **Merge**: Commit with "why" not "what"
+```
+
+---
+
+## Multi-agent research and planning
+
+```markdown
+<rule priority="critical">When launching subagents, use the Task Tool,
+Codex CLI, Grok API, and Gemini CLI.</rule>
+```
+
+CLI invocations:
+
+| Model | Command |
+|-------|---------|
+| Codex | `codex -m gpt-5.3-codex exec --full-auto "task"` |
+| Gemini | `gemini -m gemini-3.1-pro-preview -p "prompt"` |
+| Grok | Python + curl (no CLI — see next slide) |
+
+---
+
+## Grok invocation (API via curl)
+
+```bash
+python3 << 'EOF'
+import json
+code = open('file.py').read()
+req = {"messages": [{"role": "user",
+  "content": f"Review:\n{code}"}],
+  "model": "grok-4-1-fast-reasoning", "temperature": 0}
+json.dump(req, open('/tmp/req.json', 'w'))
+EOF
+curl -X POST https://api.x.ai/v1/chat/completions \
+  -H "Authorization: Bearer $GROK_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d @/tmp/req.json
+```
+
+---
+
 ## Tone = intelligence: the register-context hook
+
+Next-token prediction: there is no separation between tone and intelligence. A junior-engineer-sounding token IS a junior-engineer-intelligence token.
 
 A hook fires on every prompt and injects:
 
 > *"This conversation operates at principal-engineer depth. Lead with mechanisms and tradeoffs, not summaries."*
 
-Next-token prediction: there is no separation between tone and intelligence. A junior-engineer-sounding token IS a junior-engineer-intelligence token.
-
-**The hook biases every response toward higher-register output without requiring formal prompts.**
+**Every response is biased toward higher-register output automatically.**
 
 ---
 
 ## Context discipline: make the invisible visible
 
-Three defenses against the working-memory problem:
-
-**1. Keep config small.** Under 100 lines.
-
-**2. Make context visible.** A hook injects a fuel gauge after every action:
+A hook injects a fuel gauge after every action:
 
 > `85k/200k (42%)`
 
-At 60%: evaluate if you can finish. At 80%: stop and document state.
+```bash
+TOTAL=$(echo "$USAGE" | jq '.message.usage |
+  (.input_tokens + .cache_creation_input_tokens
+  + .cache_read_input_tokens)')
+K=$(( TOTAL / 1000 ))
+PCT=$(( TOTAL * 100 / 200000 ))
+```
 
-**3. Delegate to subagents.** Task tool results return summarized — 50-step research = a few paragraphs, not 50 tool calls.
-
----
-
-## 🔴 DEMO 1: The Context Fuel Gauge
-
-Run a Claude Code command → point to the context percentage.
-
-*"Instead of guessing when the AI is about to lose its memory, it now sees its own capacity and stops itself."*
-
----
-
-## Cross-functional review: multi-model orchestration
-
-| Model | Role | Analogy |
-|-------|------|---------|
-| **Claude Opus 4.6** | Deep analysis, writing | Your meticulous lead |
-| **Codex gpt-5.3** | Long autonomous coding | Your workhorse engineer |
-| **Grok 4.1** | Code review, contrarian | Your auditor who disagrees |
-| **Gemini 3.1 Pro** | Architecture, security | Your second opinion |
-
----
-
-## Why not just one model?
-
-From a four-model audit on my own documents:
-
-| Model | Strength | Blind spot |
-|-------|----------|-----------|
-| **Claude** | Fact-checking, nuance | Accepts others' citations uncritically |
-| **Grok** | Contrarian stress-tests | Fabricates legal citations |
-| **Gemini** | Red-teaming, frameworks | Weaker on deep ambiguity |
-| **Codex** | Long autonomous coding | Not suited for analysis |
-
-**Example:** Grok cited a real IRS ruling for the wrong topic. Claude accepted it. Gemini caught it.
-
-When models agree → corroboration.
-When they disagree → investigate.
-
----
-
-## 🔴 DEMO 2: Multi-Model Audit
-
-Launch a multi-model audit → show agents fanning out in parallel → show where they disagree.
-
-*"If you ask one person for advice, you get a blind spot. If you ask three different models trained on different data, you find the truth."*
+**At 60%:** Evaluate if you can finish. Write remaining tasks to disk.
+**At 80%:** Stop new work. Wrap up and end session.
 
 ---
 
@@ -211,7 +332,7 @@ Cursor, Copilot Workspace, Aider, Replit Agent — all good tools.
 
 What they don't give you:
 
-- **Boris Cherny loop** — self-improving config
+- **Auto-memory** — self-improving config across sessions
 - **Multi-model orchestration** from a single session
 - **Constraint architecture** (coming next)
 
@@ -224,45 +345,9 @@ If you want a system that compounds → build config.
 
 | Layer | What it blocks | When |
 |-------|---------------|------|
-| **PreToolUse hook** | AWS keys, GitHub tokens, Stripe keys, private keys | Before the file is written |
+| **PreToolUse hook** | AWS keys, GitHub tokens, Stripe keys | Before the file is written |
 | **Git pre-commit** | Same patterns on staged changes | Before the commit |
-| **Deny rules** | `git push --force`, `git reset --hard`, etc. | Before the command runs |
-
-*Known gaps documented. Belt and suspenders.*
-
----
-
-## Observability: the audit trail
-
-Every skill/task invocation gets logged:
-
-```
-2026-02-28 14:32 | skill | interview-prep | claude-life
-2026-02-28 14:35 | task  | Explore        | openclaw
-2026-02-28 15:01 | skill | audit          | claude-life
-```
-
-This is how I know interview-prep is heavy and env-setup is never used. **Data, not guesses.**
-
----
-
-## Self-correcting memory
-
-Claude is stateless. Every session starts from zero.
-
-Fake persistent learning with a correction file (`memory/MEMORY.md`) that loads every conversation:
-
-```markdown
-## Hallucination Prevention
-- Never present agent assessments as company feedback
-- Comp figures: note source (company, posting, or estimate)
-
-## Tool Gotchas
-- Edit: use smaller unique target strings
-- Grep: sometimes ENOENT — use Read as fallback
-```
-
-**Not machine learning. A manually curated correction file. The feedback loop lives in config, not in the model.**
+| **Deny rules** | `git push --force`, `git reset --hard` | Before the command runs |
 
 ---
 
@@ -270,26 +355,13 @@ Fake persistent learning with a correction file (`memory/MEMORY.md`) that loads 
 
 ---
 
-## Skills codify what you learned
+## Why constraints beat capabilities
 
-`/interview-prep` — 102 lines, 15+ transcripts, 5 companies.
+I spent two weeks building interview analysis instead of studying. The output was excellent. The **direction** was wrong.
 
-I tracked what I actually used in a 64-minute panel interview:
+The fix wasn't a better model. It was **constraints.**
 
-- Scripted Q&A answers: **used 3 out of 16**
-- Ad-hoc scaffolding: **used constantly**
-
-Rule: don't write scripts, build frameworks the agent fills in real-time.
-
-*"Mechanical fixes over personality advice. 'Count to 3 after finishing. Sip water.' NOT 'Be more confident.'"*
-
----
-
-## Escape velocity: why constraints beat capabilities
-
-The changes that most improved my output weren't new tools, new models, or new skills.
-
-They were **constraints.**
+**The tool that makes you 10x faster at the wrong thing is not a 10x tool.**
 
 ---
 
@@ -312,24 +384,13 @@ It works because the constraint is in the config, not in my willpower.
 
 ## More constraints that changed behavior
 
-**"No motivational fluff. No 'you've got this!'"**
-→ Stopped cheerleading, started honest assessments.
+| Constraint | What it stopped |
+|------------|----------------|
+| "No motivational fluff. No 'you've got this!'" | Cheerleading instead of honest assessments |
+| "Tables > prose. Bullets > paragraphs." | Verbose output (cut ~40%) |
+| "Search existing files before creating new ones." | File sprawl — duplicate strategy docs everywhere |
 
-**"Tables > prose. Bullets > paragraphs."**
-→ Cut verbose output by ~40%.
-
-**"Search existing files before creating new ones."**
-→ Stopped file sprawl. I had duplicate strategy docs everywhere.
-
----
-
-## The takeaway
-
-When you get a powerful AI tool, your instinct is to give it more capabilities.
-
-The higher-leverage move is to give it **constraints.**
-
-**The tool that makes you 10x faster at the wrong thing is not a 10x tool.**
+None of these are capabilities. They're guardrails.
 
 ---
 
@@ -349,7 +410,18 @@ The higher-leverage move is to give it **constraints.**
 
 **Setup:** `setup.sh` takes ~10 minutes. Building CLAUDE.md rules takes weeks of iteration — that's the real investment.
 
-**Repo:** github.com/pahdo/spc-dotfiles-demo
+**Repos:**
+- Slide deck: github.com/pahdo/spc-dotfiles-demo
+- Full notes: github.com/pahdo/agentic-coding-notes
+
+---
+
+## What else I've been using
+
+- **/remote-control** — note: `/clear` doesn't work in remote sessions
+- **Tailscale + Screens** (iOS) — start new remote-control sessions from phone
+- **/sandbox** — like dangerously-skip-permissions, but safer
+- **Obsidian** — workbook management, synced via Obsidian Sync
 
 ---
 
@@ -361,3 +433,7 @@ The higher-leverage move is to give it **constraints.**
 > "Update your CLAUDE.md so you don't make that mistake again."
 >
 > Claude is eerily good at writing rules for itself.
+
+---
+
+### Thanks for reading! Please feel free to suggest any improvements
