@@ -132,6 +132,18 @@ Not deterministic — a statistical bias on output distribution.
 
 ---
 
+## Tone = intelligence: the register-context hook
+
+A hook fires on every prompt and injects:
+
+> *"This conversation operates at principal-engineer depth. Lead with mechanisms and tradeoffs, not summaries."*
+
+Next-token prediction: there is no separation between tone and intelligence. A junior-engineer-sounding token IS a junior-engineer-intelligence token.
+
+**The hook biases every response toward higher-register output without requiring formal prompts.**
+
+---
+
 ## Context discipline: make the invisible visible
 
 Three defenses against the working-memory problem:
@@ -169,16 +181,19 @@ Run a Claude Code command → point to the context percentage.
 
 ## Why not just one model?
 
-Single-model analysis has consistent blind spots that reproduce identically every session.
+From a four-model audit on my own documents:
 
-**Example:** Grok cited Rev. Rul. 2004-54 for QSBS tax analysis — the ruling exists but covers federal interest rate tables, not QSBS.
+| Model | Strength | Blind spot |
+|-------|----------|-----------|
+| **Claude** | Fact-checking, nuance | Accepts others' citations uncritically |
+| **Grok** | Contrarian stress-tests | Fabricates legal citations |
+| **Gemini** | Red-teaming, frameworks | Weaker on deep ambiguity |
+| **Codex** | Long autonomous coding | Not suited for analysis |
 
-Claude accepted the citation without questioning.
-
-**Gemini caught the misapplication.**
+**Example:** Grok cited a real IRS ruling for the wrong topic. Claude accepted it. Gemini caught it.
 
 When models agree → corroboration.
-When they disagree → a question worth investigating.
+When they disagree → investigate.
 
 ---
 
@@ -217,17 +232,37 @@ If you want a system that compounds → build config.
 
 ---
 
+## Observability: the audit trail
+
+Every skill/task invocation gets logged:
+
+```
+2026-02-28 14:32 | skill | interview-prep | claude-life
+2026-02-28 14:35 | task  | Explore        | openclaw
+2026-02-28 15:01 | skill | audit          | claude-life
+```
+
+This is how I know interview-prep is heavy and env-setup is never used. **Data, not guesses.**
+
+---
+
 ## Self-correcting memory
 
 Claude is stateless. Every session starts from zero.
 
-But you can fake persistent learning with a correction file that loads every time.
+Fake persistent learning with a correction file (`memory/MEMORY.md`) that loads every conversation:
 
-When Claude hallucinates: add `"X is wrong — actual fact is Y"` to memory.
+```markdown
+## Hallucination Prevention
+- Never present agent assessments as company feedback
+- Comp figures: note source (company, posting, or estimate)
 
-Future sessions read the correction before they can repeat the mistake.
+## Tool Gotchas
+- Edit: use smaller unique target strings
+- Grep: sometimes ENOENT — use Read as fallback
+```
 
-**This isn't machine learning. It's a manually curated correction file. The feedback loop lives in config, not in the model.**
+**Not machine learning. A manually curated correction file. The feedback loop lives in config, not in the model.**
 
 ---
 
